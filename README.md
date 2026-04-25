@@ -6,6 +6,8 @@ A conversational shopping assistant for an electronics store that demonstrates t
 
 The agent receives a user request in natural language, decides which tools to call, executes them, and generates a response based on the results. This process continues in a loop until the task is complete.
 
+**Demo video:** https://youtu.be/SACUXdGmMTo
+
 ### Problem Statement
 
 The goal of this project is to demonstrate how an LLM-powered agent can go beyond simple text generation and interact with external tools to complete user tasks.
