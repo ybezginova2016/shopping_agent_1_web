@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ShopAgent — Tool-Calling Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0c0c0c;
+    --surface: #141414;
+    --border: #252525;
+    --accent: #c8ff47;
+    --accent2: #47c8ff;
+    --text: #efefef;
+    --muted: #555;
+    --green: #4dff91;
+    --orange: #ff8c47;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .api-row {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .api-row input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    width: 280px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .api-row input:focus { border-color: var(--accent); }
+  .api-row input::placeholder { color: var(--muted); }
+
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR — tool trace */
+  aside {
+    width: 300px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .aside-title {
+    padding: 14px 18px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+
+  #trace-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .trace-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    animation: fadeSlide 0.3s ease;
+  }
+
+  .trace-item .fn-name {
+    color: var(--accent);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .trace-item .fn-args { color: var(--muted); line-height: 1.5; }
+  .trace-item .fn-result { color: var(--green); margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
+
+  /* CART */
+  .cart-section {
+    border-top: 1px solid var(--border);
+    padding: 12px;
+  }
+
+  .cart-title {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  #cart-items { display: flex; flex-direction: column; gap: 6px; }
+
+  .cart-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    animation: fadeSlide 0.3s ease;
+  }
+
+  .cart-item .item-name { color: var(--text); font-size: 11px; }
+  .cart-item .item-price { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  .cart-empty {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    padding: 8px;
+  }
+
+  /* CHAT */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .msg {
+    display: flex;
+    gap: 12px;
+    max-width: 780px;
+    animation: fadeSlide 0.3s ease;
+  }
+
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.agent { align-self: flex-start; }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .msg.user .avatar { background: var(--accent); color: #000; }
+  .msg.agent .avatar { background: var(--surface); border: 1px solid var(--border); }
+
+  .bubble {
+    padding: 12px 16px;
+    border-radius: 12px;
+    line-height: 1.6;
+    font-size: 14px;
+    max-width: 600px;
+  }
+
+  .msg.user .bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top-right-radius: 3px;
+  }
+
+  .msg.agent .bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top-left-radius: 3px;
+  }
+
+  .thinking {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 4px 0;
+  }
+
+  .thinking span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: bounce 1.2s infinite;
+  }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* INPUT */
+  .input-bar {
+    padding: 16px 28px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+  }
+
+  #input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: none;
+    height: 46px;
+  }
+  #input:focus { border-color: var(--accent); }
+  #input::placeholder { color: var(--muted); }
+
+  #send-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 0 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  #send-btn:hover { opacity: 0.85; }
+  #send-btn:active { transform: scale(0.97); }
+  #send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .hints {
+    padding: 0 28px 12px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hint-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .hint-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-6px); }
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Shop<span>Agent</span></div>
+  <div class="badge">AGENT 1 · TOOL-CALLING · REACT LOOP</div>
+  <div class="badge" style="margin-left:auto; color:#4dff91">● claude-haiku</div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="aside-title">⚡ Tool Calls</div>
+    <div id="trace-log">
+      <div class="cart-empty" style="margin-top:20px">Tool calls will appear here</div>
+    </div>
+    <div class="cart-section">
+      <div class="cart-title">🛒 Cart</div>
+      <div id="cart-items">
+        <div class="cart-empty">Empty</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CHAT -->
+  <main>
+    <div id="chat">
+      <div class="msg agent">
+        <div class="avatar">🤖</div>
+        <div class="bubble">
+          Hi! I'm a tool-calling shopping agent.<br><br>
+          I can <b>search products</b> and <b>add them to your cart</b>.
+          Watch the sidebar to see my tool calls in real time.<br><br>
+          Try asking me something! 👇
+        </div>
+      </div>
+    </div>
+
+    <div class="hints">
+      <button class="hint-btn" onclick="sendHint(this)">wireless headphones under $150</button>
+      <button class="hint-btn" onclick="sendHint(this)">best rated mouse → add to cart</button>
+      <button class="hint-btn" onclick="sendHint(this)">cheapest Sony product</button>
+      <button class="hint-btn" onclick="sendHint(this)">show me all keyboards</button>
+    </div>
+
+    <div class="input-bar">
+      <textarea id="input" placeholder="Ask the agent..." rows="1"></textarea>
+      <button id="send-btn" onclick="send()">Send ↵</button>
+    </div>
+  </main>
+
+</div>
+
+<script>
+// ─── CATALOG ───────────────────────────────────────────────────
+const CATALOG = [
+  {id:"p1",  name:"Sony WH-1000XM5",            category:"headphones", brand:"Sony",     price:349, color:"black",    rating:4.8, tags:["wireless","noise-cancelling","premium"]},
+  {id:"p2",  name:"Sony WH-CH720N",              category:"headphones", brand:"Sony",     price:129, color:"blue",     rating:4.4, tags:["wireless","budget","noise-cancelling"]},
+  {id:"p3",  name:"Bose QuietComfort Ultra",     category:"headphones", brand:"Bose",     price:379, color:"white",    rating:4.7, tags:["wireless","noise-cancelling","premium"]},
+  {id:"p4",  name:"Apple AirPods Pro 2",         category:"earbuds",    brand:"Apple",    price:249, color:"white",    rating:4.6, tags:["wireless","noise-cancelling","ios"]},
+  {id:"p5",  name:"Anker Soundcore Liberty 4 NC",category:"earbuds",    brand:"Anker",    price:99,  color:"black",    rating:4.3, tags:["wireless","budget","noise-cancelling"]},
+  {id:"p6",  name:"Logitech MX Master 3S",       category:"mouse",      brand:"Logitech", price:109, color:"graphite", rating:4.8, tags:["wireless","productivity","premium"]},
+  {id:"p7",  name:"Logitech Pebble 2",           category:"mouse",      brand:"Logitech", price:34,  color:"white",    rating:4.2, tags:["wireless","budget","portable"]},
+  {id:"p8",  name:"Keychron K2",                 category:"keyboard",   brand:"Keychron", price:89,  color:"black",    rating:4.5, tags:["wireless","mechanical","compact"]},
+  {id:"p9",  name:"NuPhy Air75",                 category:"keyboard",   brand:"NuPhy",    price:139, color:"gray",     rating:4.6, tags:["wireless","mechanical","low-profile"]},
+  {id:"p10", name:"Amazon Kindle Paperwhite",    category:"ereader",    brand:"Amazon",   price:149, color:"black",    rating:4.7, tags:["reading","portable","gift"]},
+];
+
+// ─── STATE ─────────────────────────────────────────────────────
+let cart = [];
+let messages = [
+  { role: "system", content:
+    "You are a helpful shopping assistant for an electronics store. " +
+    "Use search_products to find items and add_to_cart to add them to cart. " +
+    "When asked for the cheapest option, use sort_by='price_asc' and pick the first result. " +
+    "When asked for the best rated, use sort_by='rating_desc' and pick the first result. " +
+    "Always search before adding to cart."
+  }
+];
+
+// ─── TOOLS ─────────────────────────────────────────────────────
+const TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_products",
+      description: "Search for products in the catalog by various filters.",
+      parameters: {
+        type: "object",
+        properties: {
+          query:     { type: "string",  description: "Free-text search matched against name, category, brand, tags." },
+          category:  { type: "string",  description: "Filter by category: headphones, earbuds, mouse, keyboard, ereader." },
+          brand:     { type: "string",  description: "Filter by brand name (e.g. Sony, Logitech, Apple)." },
+          max_price: { type: "number",  description: "Maximum price in USD." },
+          sort_by:   { type: "string",  description: "Sort order: price_asc or rating_desc." },
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_to_cart",
+      description: "Add a product to the shopping cart by its ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: { type: "string",  description: "Product ID, e.g. p1, p6." },
+          quantity:   { type: "integer", description: "Number of units. Default 1." },
+        },
+        required: ["product_id"]
+      }
+    }
+  }
+];
+
+// ─── TOOL EXECUTION ────────────────────────────────────────────
+function execSearchProducts({ query="", category, brand, max_price, sort_by }) {
+  let results = [...CATALOG];
+  if (query) {
+    const words = query.toLowerCase().split(/\s+/);
+    results = results.filter(p => {
+      const hay = `${p.name} ${p.category} ${p.brand} ${p.tags.join(" ")}`.toLowerCase();
+      return words.every(w => hay.includes(w));
+    });
+  }
+  if (category) results = results.filter(p => p.category === category);
+  if (brand)    results = results.filter(p => p.brand.toLowerCase() === brand.toLowerCase());
+  if (max_price != null) results = results.filter(p => p.price <= max_price);
+  if (sort_by === "price_asc")   results.sort((a,b) => a.price - b.price);
+  if (sort_by === "rating_desc") results.sort((a,b) => b.rating - a.rating);
+  return results;
+}
+
+function execAddToCart({ product_id, quantity=1 }) {
+  const product = CATALOG.find(p => p.id === product_id);
+  if (!product) return { ok: false, error: `Product ${product_id} not found` };
+  const existing = cart.find(r => r.product_id === product_id);
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    cart.push({ product_id, name: product.name, price: product.price, quantity });
+  }
+  renderCart();
+  return { ok: true, cart_size: cart.length };
+}
+
+// ─── RENDER ────────────────────────────────────────────────────
+function renderCart() {
+  const el = document.getElementById("cart-items");
+  if (cart.length === 0) {
+    el.innerHTML = '<div class="cart-empty">Empty</div>';
+    return;
+  }
+  el.innerHTML = cart.map(item => `
+    <div class="cart-item">
+      <span class="item-name">${item.name} ×${item.quantity}</span>
+      <span class="item-price">$${item.price * item.quantity}</span>
+    </div>
+  `).join("");
+}
+
+function addTrace(name, args, result) {
+  const log = document.getElementById("trace-log");
+  const empty = log.querySelector(".cart-empty");
+  if (empty) empty.remove();
+
+  const argsStr = Object.entries(args)
+    .filter(([,v]) => v != null && v !== "")
+    .map(([k,v]) => `${k}: ${JSON.stringify(v)}`)
+    .join("\n");
+
+  let resultStr = "";
+  if (name === "search_products" && Array.isArray(result)) {
+    resultStr = result.length === 0
+      ? "→ no results"
+      : `→ ${result.length} product(s): ${result.map(p => p.name).join(", ")}`;
+  } else {
+    resultStr = `→ ${JSON.stringify(result)}`;
+  }
+
+  const div = document.createElement("div");
+  div.className = "trace-item";
+  div.innerHTML = `
+    <div class="fn-name">${name}()</div>
+    <div class="fn-args">${argsStr || "(no args)"}</div>
+    <div class="fn-result">${resultStr}</div>
+  `;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function addMessage(role, content) {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = `msg ${role === "user" ? "user" : "agent"}`;
+  div.innerHTML = `
+    <div class="avatar">${role === "user" ? "👤" : "🤖"}</div>
+    <div class="bubble">${content.replace(/\n/g, "<br>")}</div>
+  `;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+function addThinking() {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "msg agent";
+  div.id = "thinking";
+  div.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble">
+      <div class="thinking"><span></span><span></span><span></span></div>
+    </div>
+  `;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function removeThinking() {
+  const el = document.getElementById("thinking");
+  if (el) el.remove();
+}
+
+// ─── AGENT LOOP ────────────────────────────────────────────────
+async function agentLoop() {
+  const API_KEY = "PASTE_YOUR_API_KEY_HERE";
+
+  while (true) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        system: "You are a helpful shopping assistant for an electronics store. " +
+          "Use search_products to find items and add_to_cart to add them. " +
+          "When asked for the cheapest option use sort_by='price_asc' and pick the first result. " +
+          "When asked for the best rated use sort_by='rating_desc' and pick the first result. " +
+          "Always search before adding to cart.",
+        messages: messages.filter(m => m.role !== "system"),
+        tools: [
+          {
+            name: "search_products",
+            description: "Search for products in the catalog by various filters.",
+            input_schema: {
+              type: "object",
+              properties: {
+                query:     { type: "string",  description: "Free-text search matched against name, category, brand, tags." },
+                category:  { type: "string",  description: "Filter by category: headphones, earbuds, mouse, keyboard, ereader." },
+                brand:     { type: "string",  description: "Filter by brand name (e.g. Sony, Logitech, Apple)." },
+                max_price: { type: "number",  description: "Maximum price in USD." },
+                sort_by:   { type: "string",  description: "Sort order: price_asc or rating_desc." }
+              },
+              required: []
+            }
+          },
+          {
+            name: "add_to_cart",
+            description: "Add a product to the shopping cart by its ID.",
+            input_schema: {
+              type: "object",
+              properties: {
+                product_id: { type: "string",  description: "Product ID e.g. p1, p6." },
+                quantity:   { type: "integer", description: "Number of units. Default 1." }
+              },
+              required: ["product_id"]
+            }
+          }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      return `<span class="error-bubble">⚠ API error ${res.status}: ${err.error?.message || res.statusText}</span>`;
+    }
+
+    const data = await res.json();
+
+    // Собираем tool_use блоки
+    const toolUseBlocks = data.content.filter(b => b.type === "tool_use");
+    const textBlock = data.content.find(b => b.type === "text");
+
+    // Нет tool calls — финальный ответ
+    if (toolUseBlocks.length === 0) {
+      return textBlock ? textBlock.text.replace(/\n/g, "<br>") : "Done.";
+    }
+
+    // Добавляем ответ ассистента в историю
+    messages.push({ role: "assistant", content: data.content });
+
+    // Выполняем каждый tool call
+    const toolResults = [];
+    for (const tc of toolUseBlocks) {
+      const name = tc.name;
+      const args = tc.input;
+      let result;
+      if      (name === "search_products") result = execSearchProducts(args);
+      else if (name === "add_to_cart")     result = execAddToCart(args);
+      else                                  result = { error: `Unknown tool: ${name}` };
+
+      addTrace(name, args, result);
+      toolResults.push({
+        type: "tool_result",
+        tool_use_id: tc.id,
+        content: JSON.stringify(result)
+      });
+    }
+
+    // Добавляем результаты инструментов в историю
+    messages.push({ role: "user", content: toolResults });
+  }
+}
+
+// ─── SEND ──────────────────────────────────────────────────────
+async function send() {
+  const input = document.getElementById("input");
+  const text = input.value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById("send-btn");
+  btn.disabled = true;
+  input.value = "";
+
+  addMessage("user", text);
+  messages.push({ role: "user", content: text });
+
+  addThinking();
+  const reply = await agentLoop();
+  removeThinking();
+
+  if (reply) addMessage("agent", reply);
+  btn.disabled = false;
+  input.focus();
+}
+
+function sendHint(el) {
+  document.getElementById("input").value = el.textContent;
+  send();
+}
+
+document.getElementById("input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+</script>
+</body>
+</html>
